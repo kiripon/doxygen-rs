@@ -1,6 +1,16 @@
 use crate::emojis;
 use crate::parser::{parse, GrammarItem, ParseError};
 
+#[derive(Clone, Copy, Default)]
+struct GenState {
+    pub already_added_params: bool,
+    pub already_added_returns: bool,
+    pub already_added_throws: bool,
+    pub already_added_pre: bool,
+    pub already_added_post: bool,
+    pub already_added_see: bool,
+}
+
 /// Creates a Rustdoc string from a Doxygen string.
 ///
 /// # Errors
@@ -10,34 +20,31 @@ use crate::parser::{parse, GrammarItem, ParseError};
 pub fn rustdoc(input: String) -> Result<String, ParseError> {
     let parsed = parse(input)?;
     let mut result = String::new();
-    let mut already_added_params = false;
-    let mut already_added_returns = false;
-    let mut already_added_throws = false;
+    let mut gen_state: GenState = GenState::default();
     let mut group_started = false;
 
     for item in parsed {
         result += &match item {
             GrammarItem::Notation { meta, params, tag } => {
-                let (str, (added_param, added_return, added_throws)) = generate_notation(
-                    tag,
-                    meta,
-                    params,
-                    (
-                        already_added_params,
-                        already_added_returns,
-                        already_added_throws,
-                    ),
-                );
-                if added_param {
-                    already_added_params = true;
+                let (str, new_gen_state) = generate_notation(tag, meta, params, gen_state)?;
+                if new_gen_state.already_added_params {
+                    gen_state.already_added_params = true;
                 }
 
-                if added_return {
-                    already_added_returns = true;
+                if new_gen_state.already_added_returns {
+                    gen_state.already_added_returns = true;
                 }
 
-                if added_throws {
-                    already_added_throws = true;
+                if new_gen_state.already_added_throws {
+                    gen_state.already_added_throws = true;
+                }
+
+                if new_gen_state.already_added_pre {
+                    gen_state.already_added_pre = true;
+                }
+
+                if new_gen_state.already_added_post {
+                    gen_state.already_added_post = true;
                 }
 
                 str
@@ -56,6 +63,7 @@ pub fn rustdoc(input: String) -> Result<String, ParseError> {
                 group_started = false;
                 continue
             },
+            GrammarItem::Url(url) => ["<", &url, ">"].concat(),
         };
     }
 
@@ -66,18 +74,16 @@ fn generate_notation(
     tag: String,
     meta: Vec<String>,
     params: Vec<String>,
-    (already_params, already_returns, already_throws): (bool, bool, bool),
-) -> (String, (bool, bool, bool)) {
-    let mut new_param = false;
-    let mut new_return = false;
-    let mut new_throw = false;
+    gen_state: GenState,
+) -> Result<(String, GenState), ParseError> {
+    let mut new_state = GenState::default();
 
-    (
+    Ok((
         match tag.as_str() {
             "param" => {
                 let param = params.get(0);
-                new_param = true;
-                let mut str = if !already_params {
+                new_state.already_added_params = true;
+                let mut str = if !gen_state.already_added_params {
                     "# Arguments\n\n".into()
                 } else {
                     String::new()
@@ -128,13 +134,21 @@ fn generate_notation(
                     .to_string()
             }
             "sa" | "see" => {
-                let code_ref = params.get(0).expect("@sa/@see doesn't contain a reference");
-                format!("[`{code_ref}`]")
+                let mut str = String::new();
+                if !gen_state.already_added_see {
+                    str += "# See also\n\n";
+                    new_state.already_added_see = true;
+                }
+
+                if let Some(code_ref) = params.get(0) {
+                    str += &format!("[`{code_ref}`]");
+                }
+                str
             }
             "retval" => {
                 let var = params.get(0).expect("@retval doesn't contain a parameter");
-                new_return = true;
-                let mut str = if !already_returns {
+                new_state.already_added_returns = true;
+                let mut str = if !gen_state.already_added_returns {
                     "# Returns\n\n".into()
                 } else {
                     String::new()
@@ -144,18 +158,18 @@ fn generate_notation(
                 str
             }
             "returns" | "return" | "result" => {
-                new_return = true;
-                if !already_returns {
+                new_state.already_added_returns = true;
+                if !gen_state.already_added_returns {
                     "# Returns\n\n".into()
                 } else {
                     String::new()
                 }
             }
             "throw" | "throws" | "exception" => {
-                new_throw = true;
+                new_state.already_added_throws = true;
                 let exception = params.get(0).expect("@param doesn't contain a parameter");
 
-                let mut str = if !already_throws {
+                let mut str = if !gen_state.already_added_throws {
                     "# Throws\n\n".into()
                 } else {
                     String::new()
@@ -169,12 +183,38 @@ fn generate_notation(
             "deprecated" => String::from("> **Deprecated** "),
             "remark" | "remarks" => String::from("> "),
             "par" => String::from("# "),
-            "details" | "pre" | "post" => String::from("\n\n"),
+            "pre" => {
+                new_state.already_added_pre = true;
+
+                let mut str = if !gen_state.already_added_pre {
+                    String::from("# Precondition\n\n")
+                } else {
+                    String::new()
+                };
+                if let Some(precondition) = params.get(0) {
+                    str += &format!("* {precondition}");
+                }
+                str
+            }
+            "post" => {
+                new_state.already_added_post = true;
+
+                let mut str = if !gen_state.already_added_post {
+                    String::from("# Postcondition\n\n")
+                } else {
+                    String::new()
+                };
+                if let Some(postcondition) = params.get(0) {
+                    str += &format!("* {postcondition}");
+                }
+                str
+            }
+            "details" => String::from("\n\n"),
             "brief" | "short" => String::new(),
             _ => String::new(),
         },
-        (new_param, new_return, new_throw),
-    )
+        new_state,
+    ))
 }
 
 #[cfg(test)]
@@ -364,4 +404,20 @@ mod test {
         let example = include_str!("../tests/assets/example-bindgen.rs");
         println!("{}", rustdoc(example.into()).unwrap());
     }
+
+    #[test]
+    fn precondition() {
+        test_rustdoc!(
+            "@pre precondition\n@pre precondition2\n@pre precondition3",
+            "# Precondition\n\n* precondition\n* precondition2\n* precondition3"
+        );
+    }
+    #[test]
+    fn postcondition() {
+        test_rustdoc!(
+            "@post postcondition\n@post postcondition2\n@post postcondition3",
+            "# Postcondition\n\n* postcondition\n* postcondition2\n* postcondition3"
+        );
+    }
+
 }

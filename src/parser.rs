@@ -10,6 +10,10 @@ pub enum ParseError {
         found: String,
         expected: Vec<String>,
     },
+    UnexpectedCommand {
+        command: String,
+        msg: String
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -19,6 +23,7 @@ pub(crate) enum GrammarItem {
         params: Vec<String>,
         tag: String,
     },
+    Url(String),
     Text(String),
     GroupStart,
     GroupEnd,
@@ -132,6 +137,9 @@ fn parse_items(input: Vec<LexItem>) -> Result<Vec<GrammarItem>, ParseError> {
                 } else {
                     grammar_items.push(GrammarItem::Text(v.into()));
                 }
+            }
+            LexItem::Url(url) => {
+                grammar_items.push(GrammarItem::Url(url.into()));
             }
             LexItem::Space => {
                 if let Some(prev) = grammar_items.last_mut() {
