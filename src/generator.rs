@@ -84,7 +84,7 @@ fn generate_notation(
                 let param = params.get(0);
                 new_state.already_added_params = true;
                 let mut str = if !gen_state.already_added_params {
-                    "# Arguments\n\n".into()
+                    "# Arguments\n\n ".into()
                 } else {
                     String::new()
                 };
@@ -136,7 +136,7 @@ fn generate_notation(
             "sa" | "see" => {
                 let mut str = String::new();
                 if !gen_state.already_added_see {
-                    str += "# See also\n\n";
+                    str += "# See also\n\n ";
                     new_state.already_added_see = true;
                 }
 
@@ -149,7 +149,7 @@ fn generate_notation(
                 let var = params.get(0).expect("@retval doesn't contain a parameter");
                 new_state.already_added_returns = true;
                 let mut str = if !gen_state.already_added_returns {
-                    "# Returns\n\n".into()
+                    "# Returns\n\n ".into()
                 } else {
                     String::new()
                 };
@@ -160,7 +160,7 @@ fn generate_notation(
             "returns" | "return" | "result" => {
                 new_state.already_added_returns = true;
                 if !gen_state.already_added_returns {
-                    "# Returns\n\n".into()
+                    "# Returns\n\n ".into()
                 } else {
                     String::new()
                 }
@@ -170,7 +170,7 @@ fn generate_notation(
                 let exception = params.get(0).expect("@param doesn't contain a parameter");
 
                 let mut str = if !gen_state.already_added_throws {
-                    "# Throws\n\n".into()
+                    "# Throws\n\n ".into()
                 } else {
                     String::new()
                 };
@@ -187,7 +187,7 @@ fn generate_notation(
                 new_state.already_added_pre = true;
 
                 let mut str = if !gen_state.already_added_pre {
-                    String::from("# Precondition\n\n")
+                    String::from("# Precondition\n\n ")
                 } else {
                     String::new()
                 };
@@ -200,7 +200,7 @@ fn generate_notation(
                 new_state.already_added_post = true;
 
                 let mut str = if !gen_state.already_added_post {
-                    String::from("# Postcondition\n\n")
+                    String::from("# Postcondition\n\n ")
                 } else {
                     String::new()
                 };
@@ -209,7 +209,7 @@ fn generate_notation(
                 }
                 str
             }
-            "details" => String::from("\n\n"),
+            "details" => String::from("\n\n "),
             "brief" | "short" => String::new(),
             _ => String::new(),
         },
